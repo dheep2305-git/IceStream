@@ -27,3 +27,19 @@ IceStream/
 ├── iceberg/
 ├── kafka/
 └── README.md
+
+
+So your README will now look cleanly like:
+
+```text
+📅 Day 1 — Project Setup
+        ↓
+   Content
+        ↓
+📅 Day 2 — Transaction Generator
+        ↓
+   Content
+        ↓
+📅 Day 3 — Kafka Setup
+        ↓
+   We'll add this after we actually complete Kafka
