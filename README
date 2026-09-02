@@ -1,0 +1,43 @@
+# ❄️ IceStream
+
+## Real-Time Lakehouse Observability
+
+IceStream is a real-time data observability system that monitors
+streaming data, detects data-quality problems, isolates bad records,
+and provides visibility into the health of the data pipeline.
+
+---
+
+# 🎯 Project Goal
+
+The goal of IceStream is to build a real-time system that can:
+
+- Generate continuous transaction data
+- Stream data through Apache Kafka
+- Process data using Apache Flink
+- Detect data-quality problems
+- Isolate bad records using a DLQ
+- Store reliable data using Apache Iceberg
+- Detect schema drift
+- Monitor error rates
+- Trigger a circuit breaker when data quality becomes unsafe
+- Display pipeline health through a dashboard
+
+---
+
+# 🏗️ Architecture
+
+```text
+Python Generator
+       ↓
+     Kafka
+       ↓
+     Flink
+       ↓
+ Data Validation
+    ↙       ↘
+ Good       Bad
+  ↓          ↓
+Iceberg     DLQ
+  ↓
+Dashboard
