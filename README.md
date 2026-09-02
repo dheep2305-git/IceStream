@@ -29,17 +29,19 @@ IceStream/
 └── README.md
 
 
-So your README will now look cleanly like:
+# 📅 Day 2 — Initial IceStream Components
 
-```text
-📅 Day 1 — Project Setup
-        ↓
-   Content
-        ↓
-📅 Day 2 — Transaction Generator
-        ↓
-   Content
-        ↓
-📅 Day 3 — Kafka Setup
-        ↓
-   We'll add this after we actually complete Kafka
+## Objective
+
+Started implementing the main components of the IceStream real-time data pipeline by creating the transaction generator, Kafka producer, Flink validation logic, Iceberg schemas, and initial Streamlit dashboard.
+
+## Work Completed
+
+- Created a Python transaction generator for continuous mock e-commerce data.
+- Created the Kafka producer for sending transaction data to the `transactions` Kafka topic.
+- Created Flink processing logic for validating incoming transactions.
+- Added data-quality checks for required transaction fields and invalid amounts.
+- Created Iceberg schemas for good data and bad data/DLQ records.
+- Created the initial Streamlit dashboard for displaying IceStream monitoring information.
+- Defined the basic pipeline flow from transaction generation to the dashboard.
+
