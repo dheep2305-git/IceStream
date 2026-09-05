@@ -27,24 +27,21 @@ IceStream/
 ├── iceberg/
 ├── kafka/
 └── README.md
-
+```
 # 📅 Day 2 — Project Setup
 
 ## Objective
 
 Started implementing the main components of the IceStream real-time data pipeline by creating the transaction generator, Kafka producer, Flink validation logic, Iceberg schemas, and initial Streamlit dashboard.
-
-## Work Completed
-
 - Created a Python transaction generator for continuous mock e-commerce data.
 - Created the Kafka producer for sending transaction data to the `transactions` Kafka topic.
 - Created Flink processing logic for validating incoming transactions.
 - Added data-quality checks for required transaction fields and invalid amounts.
 - Created Iceberg schemas for good data and bad data/DLQ records.
 - Created the initial Streamlit dashboard for displaying IceStream monitoring information.
-- Defined the basic pipeline flow from transaction generation to the dashboard.
+During Day 2, the initial components of IceStream were organized to establish a foundation for the complete real-time data pipeline. The transaction generator, Kafka producer, Flink validation logic, Iceberg schemas, and Streamlit dashboard were created separately so that each component can later be integrated into a single working system
 
-📅 Day 3 — Kafka Setup and Streaming Integration
+# 📅 Day 3 — Kafka Setup and Streaming Integration
 Objective
 
 Set up Apache Kafka as the streaming layer for the IceStream project.
@@ -63,10 +60,10 @@ Connected the Python producer to Kafka.
 Sent transaction records continuously to Kafka.
 Created a Kafka consumer to verify the streamed records.
 Successfully confirmed that transaction messages were being stored and consumed from Kafka.
-Kafka Setup
+Kafka Setup.
+During Day 3, Kafka was successfully configured as the messaging layer of IceStream. The transaction producer continuously generated e-commerce transaction events and sent them to the transactions topic, while the Kafka consumer was used to verify that the messages were successfully received. This confirmed that the streaming communication layer was working correctly
 
-📅 Day 4 — Apache Flink Setup
-Objective
+# 📅 Day 4 — Apache Flink Setup Objective
 
 Set up Apache Flink as the real-time stream processing layer of IceStream.
 
@@ -89,6 +86,6 @@ Java Setup
 Flink requires Java to run.
 Java was verified using:
 java -version
-Java 21 was successfully detected.
+During Day 4, Apache Flink was configured as the real-time processing layer of IceStream. The JobManager and TaskManager were successfully started using Docker, and the Kafka connector was installed to prepare Flink for consuming streaming transaction data. The environment is now ready for implementing the actual Kafka-to-Flink processing and data-quality validation pipeline.
 
 
