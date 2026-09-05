@@ -86,6 +86,5 @@ Java Setup
 Flink requires Java to run.
 Java was verified using:
 java -version
-During Day 4, Apache Flink was configured as the real-time processing layer of IceStream. The JobManager and TaskManager were successfully started using Docker, and the Kafka connector was installed to prepare Flink for consuming streaming transaction data. The environment is now ready for implementing the actual Kafka-to-Flink processing and data-quality validation pipeline.
-
+During Day 4, Apache Flink was successfully set up with JobManager and TaskManager using Docker. The Kafka connector was also installed, preparing Flink for real-time transaction processing
 
