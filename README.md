@@ -124,8 +124,8 @@ Kafka
 Flink JobManager
 Flink TaskManager
 
-📅 Day 6 — Data Reliability Dashboard Development
-Objective
+# 📅 Day 6 — Data Reliability Dashboard Development
+###Objective
 
 Enhanced the IceStream – Real-Time Lakehouse Observability platform by developing a professional Streamlit-based data reliability dashboard.
 
