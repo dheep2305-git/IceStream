@@ -125,13 +125,13 @@ Flink JobManager
 Flink TaskManager
 
 # 📅 Day 6 — Data Reliability Dashboard Development
-###Objective
+## Objective
 
 Enhanced the IceStream – Real-Time Lakehouse Observability platform by developing a professional Streamlit-based data reliability dashboard.
 
 The objective was to provide a centralized interface for monitoring streaming transaction data, data-quality metrics, pipeline health, and system status.
 
-Work Completed
+## Work Completed
 Connected the Streamlit dashboard to the existing Kafka transaction stream.
 Implemented real-time transaction monitoring.
 Added total record monitoring.
@@ -146,14 +146,15 @@ Added incident status monitoring.
 Added circuit-breaker status visualization.
 Improved the overall dashboard layout.
 
-`` # 📅 Day 7 — Data Quality Simulation & Observability Intelligence
+# 📅 Day 7 — Data Quality Simulation & Observability Intelligence
 Objective
 
 Extended IceStream's monitoring capabilities by introducing realistic data-quality scenarios and strengthening the platform's reliability and incident-monitoring features.
 
+## Objective
 The objective was to demonstrate how IceStream behaves when the incoming streaming data contains invalid or unreliable records.
 
-Work Completed
+## Work Completed
 Enhanced the Kafka producer to generate invalid transaction records for testing.
 Added intentional negative transaction amounts.
 Tested the system with invalid streaming records.
@@ -164,9 +165,6 @@ Added circuit-breaker monitoring.
 Added incident detection states.
 Added transaction intelligence metrics.
 Added validation-success monitoring.
-Added infrastructure status indicators.
-Improved the final dashboard presentation.
-🧪 Realistic Data Quality Testing
 
 To simulate real-world data-quality problems, the Kafka producer was configured to intentionally generate invalid transaction records.
 
