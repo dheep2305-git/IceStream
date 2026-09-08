@@ -88,3 +88,125 @@ Java was verified using:
 java -version
 During Day 4, Apache Flink was successfully set up with JobManager and TaskManager using Docker. The Kafka connector was also installed, preparing Flink for real-time transaction processing
 
+# 📅 Day 5 — Data Quality Validation & Dead Letter Queue
+
+## Objective
+
+Implemented and tested the data-quality validation layer of the **IceStream – Real-Time Lakehouse Observability** platform.
+
+The objective of this stage was to identify invalid streaming transaction records and isolate them into a **Dead Letter Queue (DLQ)** instead of allowing invalid data to continue through the normal processing pipeline.
+
+---
+
+## Work Completed
+
+- Restarted and verified the Kafka and Flink Docker services.
+- Verified the Kafka `transactions` topic.
+- Tested the transaction producer with streaming data.
+- Added intentional invalid transaction generation.
+- Implemented transaction validation rules.
+- Classified incoming records as GOOD DATA or BAD DATA.
+- Created the `transactions_dlq` Kafka topic.
+- Sent invalid transactions to the DLQ.
+- Verified invalid records using the Kafka console consumer.
+- Tested the complete bad-data detection workflow.
+
+---
+
+## Docker Service Verification
+
+The required IceStream infrastructure was restarted and verified.
+
+The following services were running:
+
+```text
+Kafka
+Flink JobManager
+Flink TaskManager
+
+📅 Day 6 — Data Reliability Dashboard Development
+Objective
+
+Enhanced the IceStream – Real-Time Lakehouse Observability platform by developing a professional Streamlit-based data reliability dashboard.
+
+The objective was to provide a centralized interface for monitoring streaming transaction data, data-quality metrics, pipeline health, and system status.
+
+Work Completed
+Connected the Streamlit dashboard to the existing Kafka transaction stream.
+Implemented real-time transaction monitoring.
+Added total record monitoring.
+Added valid and invalid record counts.
+Added error-rate calculation.
+Added data reliability score.
+Added transaction value monitoring.
+Created a live pipeline visualization.
+Added infrastructure status monitoring.
+Added data-quality monitoring.
+Added incident status monitoring.
+Added circuit-breaker status visualization.
+Improved the overall dashboard layout.
+
+`` # 📅 Day 7 — Data Quality Simulation & Observability Intelligence
+Objective
+
+Extended IceStream's monitoring capabilities by introducing realistic data-quality scenarios and strengthening the platform's reliability and incident-monitoring features.
+
+The objective was to demonstrate how IceStream behaves when the incoming streaming data contains invalid or unreliable records.
+
+Work Completed
+Enhanced the Kafka producer to generate invalid transaction records for testing.
+Added intentional negative transaction amounts.
+Tested the system with invalid streaming records.
+Verified invalid records using the validation layer.
+Verified that invalid records are sent to the DLQ Kafka topic.
+Added realistic data-quality scenarios.
+Added circuit-breaker monitoring.
+Added incident detection states.
+Added transaction intelligence metrics.
+Added validation-success monitoring.
+Added infrastructure status indicators.
+Improved the final dashboard presentation.
+🧪 Realistic Data Quality Testing
+
+To simulate real-world data-quality problems, the Kafka producer was configured to intentionally generate invalid transaction records.
+
+An invalid transaction can contain:
+
+amount = -500
+
+The validation layer identifies this as an invalid amount.
+
+Incoming Transaction
+        ↓
+Data Validation
+        ↓
+   ┌────┴────┐
+   ↓         ↓
+ VALID     INVALID
+   ↓         ↓
+ Good       DLQ
+
+This allows IceStream to demonstrate how bad data can be detected and isolated.
+
+🚨 Dead Letter Queue Testing
+
+Invalid transactions were successfully sent to the:
+
+transactions_dlq
+
+Kafka topic.
+
+The DLQ records contain information such as:
+
+Transaction ID
+Timestamp
+Customer ID
+Product
+Amount
+Payment Method
+Error reason
+
+Example:
+
+amount = -500
+error = "Invalid amount"
