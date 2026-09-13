@@ -15,6 +15,7 @@ PRODUCTS = [
     "Smartwatch"
 ]
 
+
 PAYMENT_METHODS = [
     "UPI",
     "Credit Card",
@@ -40,6 +41,9 @@ def generate_transaction(transaction_id):
         "payment_method": random.choice(PAYMENT_METHODS)
     }
 
+    # Generate approximately 30% invalid records
+    if random.random() < 0.2:
+        transaction["amount"] = -500
     return transaction
 
 
