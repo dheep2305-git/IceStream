@@ -3,7 +3,17 @@ import time
 
 import pandas as pd
 import streamlit as st
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, TopicPartition
+
+
+# ============================================================
+# SLO CONFIGURATION
+# ============================================================
+
+VALID_RECORDS_SLO = 98.0
+ERROR_RATE_SLO = 2.0
+REQUIRED_FIELDS_SLO = 99.0
+DLQ_RATE_SLO = 2.0
 
 
 # ============================================================
@@ -23,7 +33,8 @@ st.set_page_config(
 # ============================================================
 
 st.markdown(
-"""<style>
+"""
+<style>
 
 .stApp {
     background:
@@ -228,6 +239,84 @@ header {
     color: #64748b;
     font-size: 11px;
     margin-top: 7px;
+}
+
+
+/* ============================================================
+   SLO HEALTH
+   ============================================================ */
+
+.slo-container {
+    padding: 22px;
+    border-radius: 20px;
+    background: linear-gradient(
+        145deg,
+        #0e1d31,
+        #0a1728
+    );
+    border: 1px solid rgba(59, 130, 246, 0.20);
+    box-shadow:
+        0 15px 40px rgba(0, 0, 0, 0.20);
+}
+
+.slo-header {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr 1fr 1.2fr;
+    gap: 12px;
+    padding: 0 12px 12px 12px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+}
+
+.slo-row {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr 1fr 1.2fr;
+    gap: 12px;
+    align-items: center;
+    padding: 15px 12px;
+    border-top: 1px solid #1e293b;
+    font-size: 13px;
+}
+
+.slo-name {
+    color: #f8fafc;
+    font-weight: 700;
+}
+
+.slo-target {
+    color: #94a3b8;
+}
+
+.slo-actual {
+    color: #f8fafc;
+    font-weight: 750;
+}
+
+.slo-healthy {
+    color: #4ade80;
+    font-weight: 800;
+}
+
+.slo-breached {
+    color: #f87171;
+    font-weight: 800;
+}
+
+.slo-na {
+    color: #94a3b8;
+    font-weight: 700;
+}
+
+.slo-summary {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.75);
+    color: #94a3b8;
+    font-size: 12px;
 }
 
 
@@ -506,7 +595,8 @@ header {
     padding-bottom: 15px;
 }
 
-</style>""",
+</style>
+""",
 unsafe_allow_html=True
 )
 
@@ -518,10 +608,12 @@ unsafe_allow_html=True
 with st.sidebar:
 
     st.markdown(
-"""<div class="sidebar-title">❄️ IceStream</div>
+"""
+<div class="sidebar-title">❄️ IceStream</div>
 <div class="sidebar-subtitle">
 Real-Time Data Reliability & Observability
-</div>""",
+</div>
+""",
         unsafe_allow_html=True
     )
 
@@ -532,6 +624,11 @@ Real-Time Data Reliability & Observability
 
     st.markdown(
         '<div class="sidebar-item">📊 Reliability Dashboard</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="sidebar-item">🎯 SLO Monitoring</div>',
         unsafe_allow_html=True
     )
 
@@ -576,59 +673,181 @@ Real-Time Data Reliability & Observability
     )
 
     st.markdown(
-        '<div class="sidebar-section">Protection Threshold</div>',
+        '<div class="sidebar-section">SLO Configuration</div>',
         unsafe_allow_html=True
     )
 
-    st.info("Circuit breaker threshold: 2%")
+    st.info(
+        f"""
+Valid Records: ≥ {VALID_RECORDS_SLO:.0f}%
+
+Error Rate: ≤ {ERROR_RATE_SLO:.0f}%
+
+Required Fields: ≥ {REQUIRED_FIELDS_SLO:.0f}%
+
+DLQ Rate: ≤ {DLQ_RATE_SLO:.0f}%
+"""
+    )
 
 
 # ============================================================
 # KAFKA READER
 # ============================================================
 
-@st.cache_resource
-def create_consumer():
+def read_transactions(limit=20):
 
-    return KafkaConsumer(
-        "transactions",
+    consumer = KafkaConsumer(
         bootstrap_servers="localhost:9092",
         value_deserializer=lambda value: json.loads(
             value.decode("utf-8")
         ),
-        auto_offset_reset="latest",
         enable_auto_commit=False,
-        group_id="icestream-dashboard-live"
+        group_id=None
     )
 
+    try:
 
-def read_transactions():
-    
-    consumer = create_consumer()
+        partitions = consumer.partitions_for_topic(
+            "transactions"
+        )
 
-    records = []
-    start_time = time.time()
+        if not partitions:
+            return []
 
-    # Wait for live Kafka records for up to 10 seconds
-    while time.time() - start_time < 10:
+        topic_partitions = [
+            TopicPartition("transactions", p)
+            for p in partitions
+        ]
 
-        batch = consumer.poll(timeout_ms=1000)
+        consumer.assign(topic_partitions)
 
-        for messages in batch.values():
+        beginning = consumer.beginning_offsets(
+            topic_partitions
+        )
 
-            for message in messages:
+        ending = consumer.end_offsets(
+            topic_partitions
+        )
 
-                records.append(message.value)
+        # Read the latest records already stored in Kafka.
+        for tp in topic_partitions:
 
-                if len(records) >= 100:
-                    return records
+            start_offset = max(
+                beginning[tp],
+                ending[tp] - limit
+            )
 
-        # Once we have received some records, give the stream
-        # a short window to collect more before displaying them.
-        if records and time.time() - start_time >= 5:
-            break
+            consumer.seek(
+                tp,
+                start_offset
+            )
 
-    return records
+        records = []
+
+        start_time = time.time()
+
+        while time.time() - start_time < 5:
+
+            batch = consumer.poll(
+                timeout_ms=500
+            )
+
+            for messages in batch.values():
+
+                for message in messages:
+
+                    records.append(
+                        message.value
+                    )
+
+            if len(records) >= limit:
+                break
+
+        return records[-limit:]
+
+    finally:
+
+        consumer.close()
+
+
+# ============================================================
+# DLQ READER
+# ============================================================
+
+def read_dlq_transactions(limit=100):
+
+    consumer = KafkaConsumer(
+        bootstrap_servers="localhost:9092",
+        value_deserializer=lambda value: json.loads(
+            value.decode("utf-8")
+        ),
+        enable_auto_commit=False,
+        group_id=None
+    )
+
+    try:
+
+        partitions = consumer.partitions_for_topic(
+            "transactions_dlq"
+        )
+
+        if not partitions:
+            return []
+
+        topic_partitions = [
+            TopicPartition("transactions_dlq", p)
+            for p in partitions
+        ]
+
+        consumer.assign(topic_partitions)
+
+        beginning = consumer.beginning_offsets(
+            topic_partitions
+        )
+
+        ending = consumer.end_offsets(
+            topic_partitions
+        )
+
+        # Read the latest DLQ records already stored in Kafka.
+        for tp in topic_partitions:
+
+            start_offset = max(
+                beginning[tp],
+                ending[tp] - limit
+            )
+
+            consumer.seek(
+                tp,
+                start_offset
+            )
+
+        records = []
+
+        start_time = time.time()
+
+        while time.time() - start_time < 5:
+
+            batch = consumer.poll(
+                timeout_ms=500
+            )
+
+            for messages in batch.values():
+
+                for message in messages:
+
+                    records.append(
+                        message.value
+                    )
+
+            if len(records) >= limit:
+                break
+
+        return records[-limit:]
+
+    finally:
+
+        consumer.close()
 
 
 # ============================================================
@@ -640,7 +859,8 @@ header_left, header_right = st.columns([5, 1])
 with header_left:
 
     st.markdown(
-"""<div class="brand">
+"""
+<div class="brand">
 <div class="brand-icon">❄️</div>
 <div>
 <div class="brand-name">IceStream</div>
@@ -648,17 +868,21 @@ with header_left:
 Real-Time Data Reliability & Observability Platform
 </div>
 </div>
-</div>""",
+</div>
+""",
         unsafe_allow_html=True
     )
+
 
 with header_right:
 
     st.markdown(
-"""<div class="live-badge">
+"""
+<div class="live-badge">
 <div class="live-dot"></div>
 SYSTEM ONLINE
-</div>""",
+</div>
+""",
         unsafe_allow_html=True
     )
 
@@ -675,11 +899,14 @@ control_left, control_right = st.columns([5, 1])
 with control_left:
 
     st.markdown(
-"""<span style="color:#64748b;font-size:13px;">
+"""
+<span style="color:#64748b;font-size:13px;">
 Monitoring transaction pipeline • Kafka • Flink • Data Quality
-</span>""",
+</span>
+""",
         unsafe_allow_html=True
     )
+
 
 with control_right:
 
@@ -687,7 +914,9 @@ with control_right:
         "🔄 Refresh Data",
         use_container_width=True
     ):
+
         st.cache_resource.clear()
+
         st.rerun()
 
 
@@ -698,12 +927,20 @@ with control_right:
 try:
 
     transactions = read_transactions()
+    dlq_transactions = read_dlq_transactions()
+
 
     if transactions:
 
-        df = pd.DataFrame(transactions)
+        df = pd.DataFrame(
+            transactions
+        )
 
-        df["is_bad"] = df["amount"] <= 0
+        # Existing IceStream validation rule:
+        # transaction amount must be greater than zero.
+        df["is_bad"] = (
+            df["amount"] <= 0
+        )
 
         total_records = len(df)
 
@@ -712,7 +949,8 @@ try:
         )
 
         good_records = (
-            total_records - bad_records
+            total_records -
+            bad_records
         )
 
         error_rate = (
@@ -740,6 +978,39 @@ try:
             .mean()
         )
 
+
+        # ====================================================
+        # DLQ CALCULATION
+        # ====================================================
+
+        transaction_ids = set(
+            df["transaction_id"].tolist()
+        )
+
+        dlq_transaction_ids = set(
+            record.get("transaction_id")
+            for record in dlq_transactions
+            if record.get("transaction_id") is not None
+        )
+
+        matched_dlq_records = (
+            transaction_ids &
+            dlq_transaction_ids
+        )
+
+        dlq_records = len(
+            matched_dlq_records
+        )
+
+        dlq_rate = (
+            dlq_records /
+            total_records *
+            100
+            if total_records > 0
+            else 0
+        )
+
+
     else:
 
         df = pd.DataFrame()
@@ -748,9 +1019,93 @@ try:
         good_records = 0
         bad_records = 0
         error_rate = 0
-        reliability_score = 100
+        reliability_score = 0
         total_value = 0
         average_transaction = 0
+        dlq_records = 0
+        dlq_rate = 0
+
+
+    # ========================================================
+    # REQUIRED FIELD QUALITY
+    # ========================================================
+
+    required_fields = [
+        "transaction_id",
+        "customer_id",
+        "product",
+        "amount",
+        "payment_method"
+    ]
+
+    available_required_fields = [
+        field
+        for field in required_fields
+        if field in df.columns
+    ]
+
+    if total_records > 0 and available_required_fields:
+
+        required_field_checks = 0
+        required_field_failures = 0
+
+        for field in available_required_fields:
+
+            field_values = df[field]
+
+            missing_values = (
+                field_values.isna() |
+                field_values.astype(str).str.strip().eq("")
+            )
+
+            required_field_checks += total_records
+
+            required_field_failures += int(
+                missing_values.sum()
+            )
+
+        required_fields_percentage = (
+            100 -
+            (
+                required_field_failures /
+                required_field_checks *
+                100
+            )
+        )
+
+    elif total_records == 0:
+
+        required_fields_percentage = 0
+
+    else:
+
+        required_fields_percentage = None
+
+
+    # ========================================================
+    # SLO STATUS CALCULATIONS
+    # ========================================================
+
+    valid_slo_breached = (
+        total_records > 0 and
+        (good_records / total_records * 100)
+        < VALID_RECORDS_SLO
+    )
+
+    error_slo_breached = (
+        total_records > 0 and
+        error_rate > ERROR_RATE_SLO
+    )
+
+    required_fields_slo_breached = (
+        required_fields_percentage is not None and
+        required_fields_percentage < REQUIRED_FIELDS_SLO
+    )
+
+    dlq_slo_breached = (
+        total_records > 0 and
+        dlq_rate > DLQ_RATE_SLO
+    )
 
 
     # ========================================================
@@ -769,18 +1124,21 @@ try:
         unsafe_allow_html=True
     )
 
+
     k1, k2, k3, k4, k5 = st.columns(5)
 
 
     with k1:
 
         st.markdown(
-f"""<div class="kpi-card">
+            f"""
+<div class="kpi-card">
 <div class="kpi-icon">📦</div>
 <div class="kpi-label">Total Records</div>
 <div class="kpi-value">{total_records:,}</div>
 <div class="kpi-footer">Monitored transaction events</div>
-</div>""",
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -788,12 +1146,14 @@ f"""<div class="kpi-card">
     with k2:
 
         st.markdown(
-f"""<div class="kpi-card">
+            f"""
+<div class="kpi-card">
 <div class="kpi-icon">✅</div>
 <div class="kpi-label">Valid Records</div>
 <div class="kpi-value">{good_records:,}</div>
 <div class="kpi-footer">Passed quality validation</div>
-</div>""",
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -801,12 +1161,14 @@ f"""<div class="kpi-card">
     with k3:
 
         st.markdown(
-f"""<div class="kpi-card">
+            f"""
+<div class="kpi-card">
 <div class="kpi-icon">🚨</div>
 <div class="kpi-label">Invalid Records</div>
 <div class="kpi-value">{bad_records:,}</div>
 <div class="kpi-footer">Detected quality violations</div>
-</div>""",
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -814,12 +1176,16 @@ f"""<div class="kpi-card">
     with k4:
 
         st.markdown(
-f"""<div class="kpi-card">
+            f"""
+<div class="kpi-card">
 <div class="kpi-icon">📈</div>
 <div class="kpi-label">Error Rate</div>
 <div class="kpi-value">{error_rate:.2f}%</div>
-<div class="kpi-footer">Alert threshold: 2.00%</div>
-</div>""",
+<div class="kpi-footer">
+SLO threshold: ≤ {ERROR_RATE_SLO:.2f}%
+</div>
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -827,14 +1193,247 @@ f"""<div class="kpi-card">
     with k5:
 
         st.markdown(
-f"""<div class="kpi-card">
+            f"""
+<div class="kpi-card">
 <div class="kpi-icon">💰</div>
 <div class="kpi-label">Data Value</div>
 <div class="kpi-value">₹{total_value:,.0f}</div>
 <div class="kpi-footer">Valid transaction value</div>
-</div>""",
+</div>
+""",
             unsafe_allow_html=True
         )
+
+
+    # ========================================================
+    # SLO HEALTH
+    # ========================================================
+
+    st.markdown(
+        '<div class="section-header">🎯 SLO Health</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-description">'
+        'Service Level Objectives for real-time data reliability'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+    valid_percentage = (
+        good_records /
+        total_records *
+        100
+        if total_records > 0
+        else 0
+    )
+
+
+    if valid_slo_breached:
+
+        valid_status = "🔴 BREACHED"
+        valid_status_class = "slo-breached"
+
+    elif total_records > 0:
+
+        valid_status = "🟢 HEALTHY"
+        valid_status_class = "slo-healthy"
+
+    else:
+
+        valid_status = "⚪ NO DATA"
+        valid_status_class = "slo-na"
+
+
+    if error_slo_breached:
+
+        error_status = "🔴 BREACHED"
+        error_status_class = "slo-breached"
+
+    elif total_records > 0:
+
+        error_status = "🟢 HEALTHY"
+        error_status_class = "slo-healthy"
+
+    else:
+
+        error_status = "⚪ NO DATA"
+        error_status_class = "slo-na"
+
+
+    if required_fields_percentage is None:
+
+        required_actual = "N/A"
+        required_status = "⚪ NOT AVAILABLE"
+        required_status_class = "slo-na"
+
+    else:
+
+        required_actual = (
+            f"{required_fields_percentage:.2f}%"
+        )
+
+        if required_fields_slo_breached:
+
+            required_status = "🔴 BREACHED"
+            required_status_class = "slo-breached"
+
+        else:
+
+            required_status = "🟢 HEALTHY"
+            required_status_class = "slo-healthy"
+
+
+    if total_records > 0:
+
+        dlq_actual = (
+            f"{dlq_rate:.2f}%"
+        )
+
+        if dlq_slo_breached:
+
+            dlq_status = "🔴 BREACHED"
+            dlq_status_class = "slo-breached"
+
+        else:
+
+            dlq_status = "🟢 HEALTHY"
+            dlq_status_class = "slo-healthy"
+
+    else:
+
+        dlq_actual = "N/A"
+        dlq_status = "⚪ NO DATA"
+        dlq_status_class = "slo-na"
+
+
+    slo_breached_count = sum(
+        [
+            valid_slo_breached,
+            error_slo_breached,
+            required_fields_slo_breached,
+            dlq_slo_breached
+        ]
+    )
+
+
+    if total_records == 0:
+
+        overall_slo_text = (
+            "Waiting for transaction data."
+        )
+
+    elif slo_breached_count == 0:
+
+        overall_slo_text = (
+            "🟢 All available SLOs are currently healthy."
+        )
+
+    else:
+
+        overall_slo_text = (
+            f"🔴 {slo_breached_count} "
+            "SLO objective(s) currently breached."
+        )
+
+
+    st.markdown(
+        f"""
+<div class="slo-container">
+
+<div class="slo-header">
+<div>Objective</div>
+<div>Target</div>
+<div>Actual</div>
+<div>Status</div>
+</div>
+
+<div class="slo-row">
+<div class="slo-name">
+Valid Records
+</div>
+
+<div class="slo-target">
+≥ {VALID_RECORDS_SLO:.0f}%
+</div>
+
+<div class="slo-actual">
+{valid_percentage:.2f}%
+</div>
+
+<div class="{valid_status_class}">
+{valid_status}
+</div>
+</div>
+
+
+<div class="slo-row">
+<div class="slo-name">
+Error Rate
+</div>
+
+<div class="slo-target">
+≤ {ERROR_RATE_SLO:.0f}%
+</div>
+
+<div class="slo-actual">
+{error_rate:.2f}%
+</div>
+
+<div class="{error_status_class}">
+{error_status}
+</div>
+</div>
+
+
+<div class="slo-row">
+<div class="slo-name">
+Required Fields
+</div>
+
+<div class="slo-target">
+≥ {REQUIRED_FIELDS_SLO:.0f}%
+</div>
+
+<div class="slo-actual">
+{required_actual}
+</div>
+
+<div class="{required_status_class}">
+{required_status}
+</div>
+</div>
+
+
+<div class="slo-row">
+<div class="slo-name">
+DLQ Rate
+</div>
+
+<div class="slo-target">
+≤ {DLQ_RATE_SLO:.0f}%
+</div>
+
+<div class="slo-actual">
+{dlq_actual}
+</div>
+
+<div class="{dlq_status_class}">
+{dlq_status}
+</div>
+</div>
+
+
+<div class="slo-summary">
+{overall_slo_text}
+</div>
+
+</div>
+""",
+        unsafe_allow_html=True
+    )
 
 
     # ========================================================
@@ -868,18 +1467,31 @@ f"""<div class="kpi-card">
 
 
         st.markdown(
-f"""<div class="score-card">
+            f"""
+<div class="score-card">
 <div class="score-title">Data Reliability Score</div>
-<div class="score-number">{reliability_score:.1f}</div>
-<div class="{score_class}">● {score_status}</div>
-<div class="progress-container">
-<div class="progress-bar" style="width:{reliability_score}%"></div>
+<div class="score-number">
+{reliability_score:.1f}
 </div>
+
+<div class="{score_class}">
+● {score_status}
+</div>
+
+<div class="progress-container">
+<div class="progress-bar"
+style="width:{reliability_score}%">
+</div>
+</div>
+
 <br>
+
 <span style="color:#64748b;font-size:12px;">
 Calculated from current data-quality performance.
 </span>
-</div>""",
+
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -898,33 +1510,69 @@ Calculated from current data-quality performance.
             else "#facc15"
         )
 
+
         st.markdown(
-f"""<div class="quality-card">
-<div class="quality-title">🔍 Quality Control Center</div>
+            f"""
+<div class="quality-card">
+
+<div class="quality-title">
+🔍 Quality Control Center
+</div>
 
 <div class="quality-row">
-<span class="quality-name">Positive Amount Validation</span>
-<span style="color:{validation_color};font-weight:750;">
+
+<span class="quality-name">
+Positive Amount Validation
+</span>
+
+<span style="color:{validation_color};
+font-weight:750;">
 {validation_status}
 </span>
+
 </div>
+
 
 <div class="quality-row">
-<span class="quality-name">Required Fields</span>
-<span class="quality-value">ACTIVE</span>
+
+<span class="quality-name">
+Required Fields
+</span>
+
+<span class="quality-value">
+ACTIVE
+</span>
+
 </div>
+
 
 <div class="quality-row">
-<span class="quality-name">Schema Monitoring</span>
-<span class="quality-value">ACTIVE</span>
+
+<span class="quality-name">
+Schema Monitoring
+</span>
+
+<span class="quality-value">
+ACTIVE
+</span>
+
 </div>
+
 
 <div class="quality-row">
-<span class="quality-name">Validation Engine</span>
-<span class="quality-value">ONLINE</span>
+
+<span class="quality-name">
+Validation Engine
+</span>
+
+<span class="quality-value">
+ONLINE
+</span>
+
 </div>
 
-</div>""",
+</div>
+""",
             unsafe_allow_html=True
         )
 
@@ -938,8 +1586,11 @@ f"""<div class="quality-card">
         unsafe_allow_html=True
     )
 
+
     st.markdown(
-"""<div class="pipeline-container">
+"""
+<div class="pipeline-container">
+
 <div class="pipeline">
 
 <div class="pipeline-node">
@@ -981,48 +1632,73 @@ f"""<div class="quality-card">
 </div>
 
 </div>
-</div>""",
+</div>
+""",
         unsafe_allow_html=True
     )
 
 
     # ========================================================
-    # PIPELINE PROTECTION
+    # AUTONOMOUS PIPELINE PROTECTION
     # ========================================================
 
     st.markdown(
-        '<div class="section-header">🛡️ Autonomous Pipeline Protection</div>',
+        '<div class="section-header">'
+        '🛡️ Autonomous Pipeline Protection'
+        '</div>',
         unsafe_allow_html=True
     )
+
 
     s1, s2, s3 = st.columns(3)
 
 
     with s1:
 
-        if error_rate >= 2:
+        if error_rate >= ERROR_RATE_SLO:
 
             st.markdown(
-"""<div class="status-card status-red">
-<div class="status-label">Circuit Breaker</div>
-<div class="status-value">🔴 TRIGGERED</div>
-<div class="status-description">
-Error rate exceeded the 2% protection threshold.
+"""
+<div class="status-card status-red">
+
+<div class="status-label">
+Circuit Breaker
 </div>
-</div>""",
+
+<div class="status-value">
+🔴 TRIGGERED
+</div>
+
+<div class="status-description">
+Error rate exceeded the configured
+SLO protection threshold.
+</div>
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-"""<div class="status-card status-green">
-<div class="status-label">Circuit Breaker</div>
-<div class="status-value">🟢 ARMED</div>
+"""
+<div class="status-card status-green">
+
+<div class="status-label">
+Circuit Breaker
+</div>
+
+<div class="status-value">
+🟢 ARMED
+</div>
+
 <div class="status-description">
 Pipeline protection is ready.
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
@@ -1032,67 +1708,110 @@ Pipeline protection is ready.
         if bad_records > 0:
 
             st.markdown(
-"""<div class="status-card status-yellow">
-<div class="status-label">Data Quality</div>
-<div class="status-value">🟡 WARNING</div>
+"""
+<div class="status-card status-yellow">
+
+<div class="status-label">
+Data Quality
+</div>
+
+<div class="status-value">
+🟡 WARNING
+</div>
+
 <div class="status-description">
 Invalid transaction records detected.
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-"""<div class="status-card status-green">
-<div class="status-label">Data Quality</div>
-<div class="status-value">🟢 HEALTHY</div>
+"""
+<div class="status-card status-green">
+
+<div class="status-label">
+Data Quality
+</div>
+
+<div class="status-value">
+🟢 HEALTHY
+</div>
+
 <div class="status-description">
 All monitored records passed validation.
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
 
     with s3:
 
-        if error_rate >= 2:
+        if error_rate >= ERROR_RATE_SLO:
 
             st.markdown(
-"""<div class="status-card status-red">
-<div class="status-label">Incident Center</div>
-<div class="status-value">🔴 ACTIVE</div>
+"""
+<div class="status-card status-red">
+
+<div class="status-label">
+Incident Center
+</div>
+
+<div class="status-value">
+🔴 ACTIVE
+</div>
+
 <div class="status-description">
 Immediate investigation recommended.
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-"""<div class="status-card status-green">
-<div class="status-label">Incident Center</div>
-<div class="status-value">🟢 CLEAR</div>
+"""
+<div class="status-card status-green">
+
+<div class="status-label">
+Incident Center
+</div>
+
+<div class="status-value">
+🟢 CLEAR
+</div>
+
 <div class="status-description">
 No critical incidents detected.
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
 
     # ========================================================
-    # ANALYTICS
+    # OBSERVABILITY ANALYTICS
     # ========================================================
 
     st.markdown(
-        '<div class="section-header">📈 Observability Analytics</div>',
+        '<div class="section-header">'
+        '📈 Observability Analytics'
+        '</div>',
         unsafe_allow_html=True
     )
+
 
     chart_col, incident_col = st.columns([2, 1])
 
@@ -1128,38 +1847,57 @@ No critical incidents detected.
 
     with incident_col:
 
-        if error_rate >= 2:
+        if error_rate >= ERROR_RATE_SLO:
 
             st.markdown(
-f"""<div class="incident-critical">
-<div class="incident-title">🚨 Critical Incident</div>
+                f"""
+<div class="incident-critical">
+
+<div class="incident-title">
+🚨 Critical Incident
+</div>
+
 <div class="incident-text">
 
 The data-quality error rate has exceeded
-the configured protection threshold.
+the configured SLO protection threshold.
 
 <br><br>
 
-<b>Error Rate:</b> {error_rate:.2f}%
+<b>Error Rate:</b>
+{error_rate:.2f}%
 
 <br>
 
-<b>Threshold:</b> 2.00%
+<b>SLO Threshold:</b>
+{ERROR_RATE_SLO:.2f}%
+
+<br>
+
+<b>Affected Records:</b>
+{bad_records}
 
 <br><br>
 
 🛡️ Pipeline protection requires attention.
 
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
         elif bad_records > 0:
 
             st.markdown(
-f"""<div class="incident-warning">
-<div class="incident-title">🟡 Quality Warning</div>
+                f"""
+<div class="incident-warning">
+
+<div class="incident-title">
+🟡 Quality Warning
+</div>
+
 <div class="incident-text">
 
 Invalid records have been detected,
@@ -1168,22 +1906,31 @@ the critical threshold.
 
 <br><br>
 
-<b>Invalid Records:</b> {bad_records}
+<b>Invalid Records:</b>
+{bad_records}
 
 <br>
 
-<b>Error Rate:</b> {error_rate:.2f}%
+<b>Error Rate:</b>
+{error_rate:.2f}%
 
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-"""<div class="incident-healthy">
-<div class="incident-title">🟢 All Systems Healthy</div>
+"""
+<div class="incident-healthy">
+
+<div class="incident-title">
+🟢 All Systems Healthy
+</div>
+
 <div class="incident-text">
 
 No data-quality incidents have
@@ -1195,7 +1942,9 @@ transaction stream.
 Pipeline is operating normally.
 
 </div>
-</div>""",
+
+</div>
+""",
                 unsafe_allow_html=True
             )
 
@@ -1205,9 +1954,12 @@ Pipeline is operating normally.
     # ========================================================
 
     st.markdown(
-        '<div class="section-header">💰 Transaction Intelligence</div>',
+        '<div class="section-header">'
+        '💰 Transaction Intelligence'
+        '</div>',
         unsafe_allow_html=True
     )
+
 
     t1, t2, t3 = st.columns(3)
 
@@ -1230,14 +1982,6 @@ Pipeline is operating normally.
 
     with t3:
 
-        valid_percentage = (
-            good_records /
-            total_records *
-            100
-            if total_records > 0
-            else 100
-        )
-
         st.metric(
             "Validation Success",
             f"{valid_percentage:.2f}%"
@@ -1249,9 +1993,12 @@ Pipeline is operating normally.
     # ========================================================
 
     st.markdown(
-        '<div class="section-header">🚨 Recent Invalid Transactions</div>',
+        '<div class="section-header">'
+        '🚨 Recent Invalid Transactions'
+        '</div>',
         unsafe_allow_html=True
     )
+
 
     if bad_records > 0:
 
@@ -1259,18 +2006,32 @@ Pipeline is operating normally.
             df["is_bad"]
         ].copy()
 
-        bad_df["error"] = "Invalid amount"
+        bad_df["error"] = (
+            "Invalid amount"
+        )
+
+
+        display_columns = [
+            "transaction_id",
+            "customer_id",
+            "product",
+            "amount",
+            "payment_method",
+            "error"
+        ]
+
+
+        available_display_columns = [
+            column
+            for column in display_columns
+            if column in bad_df.columns
+        ]
+
 
         display_df = bad_df[
-            [
-                "transaction_id",
-                "customer_id",
-                "product",
-                "amount",
-                "payment_method",
-                "error"
-            ]
+            available_display_columns
         ]
+
 
         st.dataframe(
             display_df,
@@ -1286,13 +2047,108 @@ Pipeline is operating normally.
 
 
     # ========================================================
+    # DLQ MONITORING
+    # ========================================================
+
+    st.markdown(
+        '<div class="section-header">'
+        '🚨 DLQ Monitoring'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    dlq_col1, dlq_col2, dlq_col3 = st.columns(3)
+
+    with dlq_col1:
+
+        st.metric(
+            "DLQ Records",
+            f"{dlq_records:,}"
+        )
+
+    with dlq_col2:
+
+        st.metric(
+            "DLQ Rate",
+            f"{dlq_rate:.2f}%"
+        )
+
+    with dlq_col3:
+
+        if dlq_slo_breached:
+
+            st.error(
+                f"🔴 DLQ SLO BREACHED\n\n"
+                f"Target ≤ {DLQ_RATE_SLO:.0f}%"
+            )
+
+        elif total_records > 0:
+
+            st.success(
+                f"🟢 DLQ SLO HEALTHY\n\n"
+                f"Target ≤ {DLQ_RATE_SLO:.0f}%"
+            )
+
+        else:
+
+            st.info(
+                "⚪ No transaction data"
+            )
+
+
+    if dlq_transactions:
+
+        dlq_df = pd.DataFrame(
+            dlq_transactions
+        )
+
+        st.markdown(
+            "#### Recent DLQ Records"
+        )
+
+        dlq_display_columns = [
+            "transaction_id",
+            "customer_id",
+            "product",
+            "amount",
+            "payment_method",
+            "error"
+        ]
+
+        available_dlq_columns = [
+            column
+            for column in dlq_display_columns
+            if column in dlq_df.columns
+        ]
+
+        if available_dlq_columns:
+
+            st.dataframe(
+                dlq_df[
+                    available_dlq_columns
+                ].tail(10),
+                use_container_width=True,
+                hide_index=True
+            )
+
+    else:
+
+        st.info(
+            "No records currently available in transactions_dlq."
+        )
+
+
+    # ========================================================
     # INFRASTRUCTURE
     # ========================================================
 
     st.markdown(
-        '<div class="section-header">⚙️ Infrastructure Status</div>',
+        '<div class="section-header">'
+        '⚙️ Infrastructure Status'
+        '</div>',
         unsafe_allow_html=True
     )
+
 
     i1, i2, i3, i4 = st.columns(4)
 
@@ -1330,7 +2186,8 @@ Pipeline is operating normally.
     # ========================================================
 
     st.markdown(
-"""<div class="footer">
+"""
+<div class="footer">
 
 ❄️ IceStream &nbsp;•&nbsp;
 Real-Time Data Reliability Platform
@@ -1338,9 +2195,11 @@ Real-Time Data Reliability Platform
 <br>
 
 Streaming Data • Quality Monitoring •
-Incident Detection • Pipeline Protection
+SLO Monitoring • Incident Detection •
+Pipeline Protection
 
-</div>""",
+</div>
+""",
         unsafe_allow_html=True
     )
 

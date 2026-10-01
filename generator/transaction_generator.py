@@ -3,6 +3,20 @@ import random
 import time
 from datetime import datetime, timezone
 
+from kafka import KafkaProducer
+
+
+# ==============================
+# KAFKA CONFIGURATION
+# ==============================
+
+KAFKA_SERVER = "localhost:9092"
+KAFKA_TOPIC = "transactions"
+
+
+# ==============================
+# SAMPLE DATA
+# ==============================
 
 PRODUCTS = [
     "Laptop",
@@ -21,7 +35,22 @@ PAYMENT_METHODS = [
 ]
 
 
+# ==============================
+# KAFKA PRODUCER
+# ==============================
+
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_SERVER,
+    value_serializer=lambda value: json.dumps(value).encode("utf-8")
+)
+
+
+# ==============================
+# TRANSACTION GENERATOR
+# ==============================
+
 def generate_transaction(transaction_id):
+
     transaction = {
         "transaction_id": transaction_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -34,21 +63,54 @@ def generate_transaction(transaction_id):
     return transaction
 
 
+# ==============================
+# MAIN
+# ==============================
+
 def main():
+
     transaction_id = 1
 
+    print()
+    print("=" * 60)
     print("🚀 IceStream Transaction Generator Started")
-    print("Generating transactions...\n")
+    print("=" * 60)
+    print()
+    print(f"📡 Kafka Server : {KAFKA_SERVER}")
+    print(f"📨 Kafka Topic  : {KAFKA_TOPIC}")
+    print()
+    print("Generating transactions...")
+    print()
 
     while True:
+
         transaction = generate_transaction(transaction_id)
 
-        print(json.dumps(transaction))
+        # Print transaction
+        print("📤 TRANSACTION SENT")
+        print(json.dumps(transaction, indent=2))
+
+        # Send transaction to Kafka
+        producer.send(
+            KAFKA_TOPIC,
+            value=transaction
+        )
+
+        # Make sure Kafka receives it immediately
+        producer.flush()
+
+        print("✅ Sent to Kafka topic:", KAFKA_TOPIC)
+        print("-" * 60)
 
         transaction_id += 1
 
+        # Generate one transaction every second
         time.sleep(1)
 
+
+# ==============================
+# START PROGRAM
+# ==============================
 
 if __name__ == "__main__":
     main()

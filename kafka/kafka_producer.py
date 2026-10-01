@@ -6,6 +6,18 @@ from datetime import datetime, timezone
 from kafka import KafkaProducer
 
 
+# ==========================================
+# KAFKA CONFIGURATION
+# ==========================================
+
+KAFKA_SERVER = "localhost:9092"
+TRANSACTIONS_TOPIC = "transactions"
+
+
+# ==========================================
+# SAMPLE DATA
+# ==========================================
+
 PRODUCTS = [
     "Laptop",
     "Mobile",
@@ -15,7 +27,6 @@ PRODUCTS = [
     "Smartwatch"
 ]
 
-
 PAYMENT_METHODS = [
     "UPI",
     "Credit Card",
@@ -24,11 +35,19 @@ PAYMENT_METHODS = [
 ]
 
 
+# ==========================================
+# KAFKA PRODUCER
+# ==========================================
+
 producer = KafkaProducer(
-    bootstrap_servers="localhost:9092",
+    bootstrap_servers=KAFKA_SERVER,
     value_serializer=lambda value: json.dumps(value).encode("utf-8")
 )
 
+
+# ==========================================
+# GENERATE TRANSACTION
+# ==========================================
 
 def generate_transaction(transaction_id):
 
@@ -41,36 +60,72 @@ def generate_transaction(transaction_id):
         "payment_method": random.choice(PAYMENT_METHODS)
     }
 
-    # Generate approximately 30% invalid records
-    if random.random() < 0.2:
+    # --------------------------------------
+    # Generate an invalid transaction
+    # Every 5th transaction = invalid amount
+    # --------------------------------------
+
+    if transaction_id % 5 == 0:
         transaction["amount"] = -500
+
     return transaction
 
+
+# ==========================================
+# MAIN
+# ==========================================
 
 def main():
 
     transaction_id = 1
 
+    print()
+    print("=" * 60)
     print("🚀 IceStream Kafka Producer Started")
-    print("Sending transactions to Kafka...\n")
+    print("=" * 60)
+    print()
+    print(f"📡 Kafka Server : {KAFKA_SERVER}")
+    print(f"📨 Topic        : {TRANSACTIONS_TOPIC}")
+    print()
+    print("Generating transactions...")
+    print("Every 5th transaction will contain an invalid amount.")
+    print()
 
     while True:
 
         transaction = generate_transaction(transaction_id)
 
+        # Send transaction to Kafka
         producer.send(
-            "transactions",
+            TRANSACTIONS_TOPIC,
             value=transaction
         )
 
+        # Ensure message is delivered
         producer.flush()
 
-        print("Sent:", transaction)
+        # Display transaction
+        if transaction["amount"] <= 0:
+
+            print("❌ INVALID TRANSACTION")
+            print(json.dumps(transaction, indent=2))
+
+        else:
+
+            print("✅ VALID TRANSACTION")
+            print(json.dumps(transaction, indent=2))
+
+        print("-" * 60)
 
         transaction_id += 1
 
+        # Wait 1 second before next transaction
         time.sleep(1)
 
+
+# ==========================================
+# START PRODUCER
+# ==========================================
 
 if __name__ == "__main__":
     main()

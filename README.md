@@ -328,3 +328,112 @@ The next development phase will focus on:
 
 IceStream has evolved into a **Real-Time Data Reliability and Observability Platform** for monitoring streaming transaction quality and pipeline health.
 
+## Day 16 – Project Setup & Architecture
+
+- Set up the IceStream project structure.
+- Created separate folders for Kafka, Flink/processing, Iceberg, generator, and dashboard.
+- Defined the overall real-time data pipeline architecture.
+- Configured Kafka to run using Docker.
+- Verified Kafka broker connectivity on `localhost:9092`.
+- Created the `transactions` Kafka topic.
+- Planned the `transactions_dlq` topic for invalid records.
+
+---
+
+## Day 17 – Kafka Producer & Real-Time Transactions
+
+- Developed the Python Kafka producer using `kafka-python`.
+- Created a transaction data structure containing:
+  - Transaction ID
+  - Timestamp
+  - Customer ID
+  - Product
+  - Amount
+  - Payment Method
+- Implemented continuous transaction generation.
+- Configured the producer to send transactions to the `transactions` topic.
+- Added controlled invalid data generation.
+- Generated an invalid transaction every fifth record by setting the amount to `-500`.
+- Verified that transactions were successfully published to Kafka.
+
+---
+
+## Day 18 – Data Validation & DLQ Processing
+
+- Developed the transaction processing component.
+- Implemented validation rules for incoming transactions.
+- Added checks for:
+  - Missing transaction ID
+  - Missing customer ID
+  - Missing product
+  - Missing amount
+  - Invalid amount
+  - Missing payment method
+- Separated transactions into good and bad data.
+- Implemented Kafka Dead Letter Queue (DLQ) processing.
+- Created the `transactions_dlq` topic.
+- Sent invalid transactions to the DLQ.
+- Added error information and processing details to DLQ records.
+- Verified invalid transactions were successfully routed to the DLQ.
+
+---
+
+## Day 19 – Streamlit Dashboard & Reliability Monitoring
+
+- Developed the Streamlit observability dashboard.
+- Added real-time transaction monitoring.
+- Added Reliability Overview.
+- Added SLO Health monitoring.
+- Added Reliability Intelligence.
+- Added Live Pipeline monitoring.
+- Added Observability Analytics.
+- Added Transaction Intelligence.
+- Added Recent Invalid Transactions section.
+- Added DLQ Monitoring.
+- Added infrastructure status monitoring.
+- Tested the dashboard with live Kafka data.
+- Verified DLQ monitoring with test data.
+- Observed:
+  - DLQ Records: 3
+  - DLQ Rate: 15%
+  - DLQ SLO Target: ≤ 2%
+  - SLO status: Breached
+
+---
+
+## Day 20 – Apache Iceberg Integration
+
+- Created the Apache Iceberg storage structure.
+- Developed the Iceberg table creation script.
+- Created the `good_transactions` Iceberg table.
+- Created the `dlq_transactions` Iceberg table.
+- Defined schemas for good and rejected transactions.
+- Configured the Iceberg warehouse:
+  `iceberg/iceberg_warehouse`
+- Installed PyIceberg and PyArrow.
+- Verified that PyIceberg was successfully installed.
+- Integrated Iceberg-related processing into the transaction processor.
+- Tested the Iceberg catalog connection.
+- Identified a catalog configuration issue with PyIceberg 0.12.0.
+- Continued troubleshooting the Spark–Iceberg connection and write process.
+
+### Current Status
+
+- Kafka pipeline: **Working**
+- Transaction generation: **Working**
+- Data validation: **Working**
+- DLQ processing: **Working**
+- Streamlit dashboard: **Working**
+- PyIceberg installation: **Completed**
+- Iceberg connection/write verification: **In Progress**
+
+## Three Key Innovations
+
+### 1. Real-Time Data Quality & Validation
+IceStream continuously validates streaming transaction data as it enters the pipeline. It detects issues such as missing fields and invalid transaction amounts before the data reaches downstream storage.
+
+### 2. Autonomous Bad-Data Isolation using DLQ
+Instead of allowing invalid records to interrupt the main pipeline, IceStream automatically identifies failed records and routes them to a dedicated Kafka Dead Letter Queue (`transactions_dlq`) along with error and processing information.
+
+### 3. Real-Time Reliability & Observability
+IceStream provides a Streamlit observability layer that monitors transaction flow, invalid records, DLQ activity, reliability metrics, and SLO status in real time, allowing data-quality problems to be identified from the dashboard.
