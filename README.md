@@ -437,3 +437,27 @@ Instead of allowing invalid records to interrupt the main pipeline, IceStream au
 
 ### 3. Real-Time Reliability & Observability
 IceStream provides a Streamlit observability layer that monitors transaction flow, invalid records, DLQ activity, reliability metrics, and SLO status in real time, allowing data-quality problems to be identified from the dashboard.
+
+## 📅 Day 21 – Iceberg Storage Integration & Troubleshooting
+
+### 🎯 Today's Goal
+Integrate Apache Iceberg with the IceStream pipeline to store valid transactions and rejected DLQ transactions as structured tables.
+
+### ✅ Work Completed
+
+- Configured **PySpark 4.0.1** for the IceStream project.
+- Added the Apache Iceberg Spark runtime dependency:
+  - `iceberg-spark-runtime-4.0_2.13:1.12.0`
+- Updated `iceberg/create_tables.py` to configure an Iceberg Hadoop catalog.
+- Defined the `good_transactions` Iceberg table for valid transaction data.
+- Defined the `dlq_transactions` Iceberg table for rejected transaction data.
+- Verified that the Iceberg dependency was successfully resolved and loaded from Maven Central.
+- Tested Spark and Iceberg table creation from the IceStream project root.
+
+### 🗂️ Iceberg Tables
+
+#### Good Transactions
+Stores successfully validated transactions.
+
+```text
+local.good_transactions
