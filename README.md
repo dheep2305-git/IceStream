@@ -461,3 +461,36 @@ Stores successfully validated transactions.
 
 ```text
 local.good_transactions
+
+## Day 22 – IceStream Dashboard Enhancements
+
+### Work Completed
+- Enhanced the IceStream Streamlit dashboard with interactive navigation.
+- Added clickable dashboard sections for:
+  - Overview
+  - Live Monitoring
+  - Data Quality
+  - DLQ Monitoring
+  - SLO & Reliability
+  - Pipeline Health
+  - Transaction Intelligence
+  - Anomaly Detection
+  - Incidents
+  - Analytics
+  - Infrastructure
+  - Search Transactions
+  - Settings
+- Added real-time SLO and reliability monitoring.
+- Added incident detection based on error-rate and DLQ SLO breaches.
+- Added severity classification for reliability incidents.
+- Added anomaly detection for unusual transaction amounts and elevated error rates.
+- Added pipeline health visibility from transaction generation through Kafka validation and DLQ.
+- Preserved the original dashboard functionality while adding the enhanced monitoring features.
+- Tested the dashboard with intentionally invalid transactions to verify SLO breach and incident detection.
+
+### Current Demo Behavior
+The current producer intentionally generates invalid transactions to test the reliability features. This can produce a 20% error rate, causing the dashboard to correctly identify an SLO breach and raise a Critical incident.
+
+### Next Step
+- Adjust the transaction generator so the normal operating state represents realistic data quality of approximately 98–99%.
+- Keep the higher error-rate scenario available for demonstrating anomaly detection, SLO breach, incident creation, and DLQ isolation.
