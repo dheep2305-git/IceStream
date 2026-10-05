@@ -494,3 +494,185 @@ The current producer intentionally generates invalid transactions to test the re
 ### Next Step
 - Adjust the transaction generator so the normal operating state represents realistic data quality of approximately 98–99%.
 - Keep the higher error-rate scenario available for demonstrating anomaly detection, SLO breach, incident creation, and DLQ isolation.
+
+<!-- ========================================================= -->
+<!-- DAY 23 - REALISTIC DATA QUALITY & FAILURE MONITORING      -->
+<!-- ========================================================= -->
+
+## Day 23 – Realistic Data Quality & Failure Monitoring
+
+<!--
+Today the IceStream data generator was improved so that the
+normal operating environment behaves more realistically.
+Instead of intentionally generating bad data every 5th
+transaction, invalid transactions are now generated using
+a configurable probability.
+-->
+
+### Work Completed
+
+<!--
+Changed the Kafka producer from a fixed invalid-data pattern
+to a configurable invalid-data rate.
+-->
+
+- Updated `kafka/kafka_producer.py` to support configurable invalid-data generation.
+
+<!--
+Normal mode uses approximately 2% invalid transactions,
+which represents approximately 98% valid data over a
+sufficiently large number of transactions.
+-->
+
+- Configured the normal operating mode with an invalid-data rate of approximately **2%**.
+- Normal mode therefore targets approximately **98% valid transaction data**.
+
+<!--
+A separate failure demonstration mode was added so that
+the project can still demonstrate how IceStream behaves
+when a large amount of bad data enters the pipeline.
+-->
+
+- Added a separate **Failure Demo Mode** with an approximately **20% invalid-data rate**.
+- Preserved the ability to intentionally create a high-error scenario for demonstrating SLO breaches and incident detection.
+
+<!--
+The producer now clearly displays which operating mode is
+currently active when it starts.
+-->
+
+- Added producer status messages showing:
+  - Normal Mode
+  - Failure Demo Mode
+  - Configured invalid-data rate
+  - Expected valid-data percentage
+
+<!--
+The existing transaction structure was preserved.
+Kafka continues to receive the same transaction fields:
+transaction_id, timestamp, customer_id, product, amount,
+and payment_method.
+-->
+
+- Preserved the existing transaction structure and Kafka topic configuration.
+- Continued sending transactions to the `transactions` Kafka topic.
+
+### Data Quality Monitoring
+
+<!--
+The dashboard was tested with the new normal operating mode.
+The initial test used only 20 records, so one invalid record
+represented 5% of the sample.
+-->
+
+- Tested the dashboard using the new normal operating mode.
+- Verified that invalid transactions are detected by the validation layer.
+- Verified that invalid transactions are isolated through the DLQ process.
+
+<!--
+With 20 records and 1 invalid record:
+Error Rate = (1 / 20) × 100 = 5%
+-->
+
+- During the initial 20-record test:
+  - Total Records: **20**
+  - Valid Records: **19**
+  - Invalid Records: **1**
+  - Error Rate: **5%**
+
+<!--
+The 5% value does not mean that the producer is configured
+for a 5% invalid rate. Because invalid data is generated
+randomly at approximately 2%, a small sample can temporarily
+show a higher or lower percentage.
+-->
+
+- The initial 5% error rate was treated as a small-sample result because only 20 transactions were available.
+
+### SLO Monitoring
+
+<!--
+IceStream currently uses an Error Rate SLO of <= 2%.
+Therefore, the initial 5% error rate exceeded the configured
+SLO.
+-->
+
+- Verified the configured Error Rate SLO:
+  - Target: **≤ 2%**
+  - Initial Actual: **5%**
+  - Status: **BREACHED**
+
+<!--
+The Valid Records SLO requires at least 98% valid records.
+The initial test had 19 valid records out of 20:
+19 / 20 × 100 = 95%
+-->
+
+- Verified the Valid Records SLO:
+  - Target: **≥ 98%**
+  - Initial Actual: **95%**
+  - Status: **BREACHED**
+
+<!--
+Required-field validation remained healthy during the test.
+-->
+
+- Required Fields:
+  - Target: **≥ 99%**
+  - Actual: **100%**
+  - Status: **HEALTHY**
+
+### Incident Monitoring
+
+<!--
+Because the Error Rate and DLQ Rate exceeded their configured
+SLO thresholds, IceStream generated an active incident.
+-->
+
+- Verified automatic incident detection from SLO and validation signals.
+- The initial test generated a **HIGH severity** incident.
+- The incident identified:
+  - Error Rate: **5%**
+  - DLQ Rate: **5%**
+  - Affected Records: **1**
+  - Primary Signal: **Invalid transaction amount**
+
+<!--
+The incident recommendation directs the operator to inspect
+the DLQ records and validate the producer data.
+-->
+
+- Verified the recommended incident action:
+  - Inspect DLQ records.
+  - Validate producer data.
+
+### Reliability Flow Tested
+
+<!--
+The complete reliability flow tested today is:
+-->
+
+```text
+Transaction Generator
+        ↓
+Kafka Producer
+        ↓
+Kafka - transactions
+        ↓
+Data Validation
+        ↓
+   ┌───────────────┐
+   │               │
+Valid Data      Invalid Data
+   │               │
+   ↓               ↓
+Continue         Kafka DLQ
+                    │
+                    ↓
+              SLO Monitoring
+                    │
+                    ↓
+              Incident Detection
+                    │
+                    ↓
+               Dashboard
