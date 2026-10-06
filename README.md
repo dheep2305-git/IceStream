@@ -676,3 +676,127 @@ Continue         Kafka DLQ
                     │
                     ↓
                Dashboard
+
+<!-- ========================================================= -->
+<!-- DAY 24 - RELIABILITY VALIDATION & INCIDENT MONITORING     -->
+<!-- ========================================================= -->
+
+## Day 24 – Reliability Validation & Incident Monitoring
+
+<!--
+Today the IceStream pipeline was tested over a larger number
+of transactions to evaluate whether the normal operating mode
+behaves consistently with the configured data-quality targets.
+-->
+
+### Work Completed
+
+<!--
+The Kafka producer was continued in Normal Mode with an
+approximately 2% invalid-data probability.
+-->
+
+- Continued testing the Kafka producer in **Normal Mode**.
+- Normal Mode uses an approximately **2% invalid-data rate**.
+- The target is approximately **98% valid transaction data** over a sufficiently large sample.
+
+<!--
+The producer, validation processor, Kafka DLQ and Streamlit
+dashboard were run together as an end-to-end reliability test.
+-->
+
+- Tested the complete IceStream pipeline:
+  - Kafka Producer
+  - Kafka `transactions` topic
+  - Data Validation
+  - Kafka DLQ
+  - SLO Monitoring
+  - Incident Detection
+  - Streamlit Dashboard
+
+### Reliability Validation
+
+<!--
+A larger transaction sample is required because a very small
+sample can make the observed error percentage fluctuate
+significantly.
+-->
+
+- Observed the reliability metrics over a larger transaction sample.
+- Compared the observed error rate against the configured **2% Error Rate SLO**.
+- Compared valid-record percentage against the configured **98% Valid Records SLO**.
+- Verified that required-field validation continues to operate.
+
+### SLO Monitoring
+
+<!--
+The SLO system continues to classify each metric as Healthy
+or Breached based on its configured target.
+-->
+
+- Verified the following SLO objectives:
+
+| SLO Objective | Target |
+|---|---:|
+| Valid Records | ≥ 98% |
+| Error Rate | ≤ 2% |
+| Required Fields | ≥ 99% |
+| DLQ Rate | ≤ 2% |
+
+<!--
+SLO status is based on measured pipeline data rather than
+manually changing the dashboard status.
+-->
+
+- Verified that the dashboard automatically identifies SLO breaches.
+- Verified that healthy metrics are displayed separately from breached metrics.
+
+### Incident Monitoring
+
+<!--
+IceStream generates an incident when configured reliability
+signals exceed their SLO thresholds.
+-->
+
+- Verified automatic incident detection from:
+  - Error Rate
+  - DLQ Rate
+  - Validation failures
+
+<!--
+Incident information provides operational context instead of
+only displaying a numerical error percentage.
+-->
+
+- Verified incident information including:
+  - Severity
+  - Trigger
+  - Error Rate
+  - DLQ Rate
+  - Affected Records
+  - Primary Signal
+  - Recommended Action
+
+### Data Quality Flow
+
+```text
+Transaction
+     ↓
+Kafka
+     ↓
+Validation
+     ↓
+ ┌───────────────┐
+ │               │
+Valid           Invalid
+ │               │
+ ↓               ↓
+Continue         DLQ
+ │               │
+ └───────┬───────┘
+         ↓
+   SLO Monitoring
+         ↓
+ Incident Detection
+         ↓
+    Dashboard
